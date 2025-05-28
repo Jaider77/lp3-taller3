@@ -5,6 +5,7 @@ Define los endpoints, controladores y la lógica de negocio de la API.
 import logging
 from flask import request
 from flask_restx import Resource, Namespace
+from werkzeug.security import generate_password_hash, check_password_hash
 from .api_models import (
     usuario_model, usuario_base, 
     cancion_model, cancion_base,
@@ -24,9 +25,7 @@ class Ping(Resource):
     @ns.marshal_with(mensaje_model)
     def get(self):
         """Endpoint para verificar que la API está funcionando"""
-        #return {"mensaje": "API funcionando correctamente"}, 200
         return {"mensaje": "API funcionando correctamente"}, 200
-
 
 # Recursos para Usuarios
 
@@ -36,6 +35,7 @@ class UsuarioListAPI(Resource):
     def get(self):
         """Devuelve la lista de todos los usuarios"""
         return Usuario.query.all(), 200
+
     @ns.doc("Crear un nuevo usuario")
     @ns.expect(usuario_base)
     @ns.response(201, "Usuario creado con éxito")
@@ -49,12 +49,15 @@ class UsuarioListAPI(Resource):
         if Usuario.query.filter_by(correo=data["correo"]).first():
             logging.warning(f"Intento de registro con correo ya existente: {data['correo']}")  # <-- Logging de advertencia
             ns.abort(400, "El correo electrónico ya está registrado")
+        # Hash de la contraseña
+        contrasena_hash = generate_password_hash(data["contrasena"])
         
         usuario = Usuario(
             nombre=data["nombre"],
-            correo=data["correo"]
+            correo=data["correo"],
+            contrasena=contrasena_hash
         )
-        
+
         try:
             db.session.add(usuario)
             db.session.commit()
@@ -65,7 +68,25 @@ class UsuarioListAPI(Resource):
             logging.error(f"Error al crear usuario: {str(e)}")  # <-- Logging de error
             ns.abort(400, f"Error al crear usuario: {str(e)}")
 
-# ...existing code...
+@ns.route("/login")
+class LoginAPI(Resource):
+    @ns.doc("Iniciar sesión de usuario")
+    def post(self):
+        data = request.json
+        correo = data.get("correo")
+        contrasena = data.get("contrasena")
+        usuario = Usuario.query.filter_by(correo=correo).first()
+        if usuario and check_password_hash(usuario.contrasena, contrasena):
+            es_admin = usuario.correo.endswith("@admin.com")
+            return {
+                "success": True,
+                "mensaje": "Inicio de sesión exitoso",
+                "usuario_id": usuario.id,
+                "admin": es_admin
+            }
+        else:
+            return {"success": False, "mensaje": "Correo o contraseña incorrectos"}, 401
+
 @ns.route("/usuarios/<int:id>")
 @ns.param("id", "Identificador único del usuario")
 @ns.response(404, "Usuario no encontrado")
@@ -74,10 +95,8 @@ class UsuarioAPI(Resource):
     @ns.marshal_with(usuario_model)
     def get(self, id):
         """Obtiene un usuario por su ID"""
-        # retorna el usuario o error 404 si no existe
         return Usuario.query.get_or_404(id)
 
-    
     @ns.doc("Actualizar un usuario")
     @ns.expect(usuario_base)
     @ns.marshal_with(usuario_model)
@@ -122,7 +141,6 @@ class CancionListAPI(Resource):
     @ns.marshal_list_with(cancion_model)
     def get(self):
         """Obtiene todas las canciones registradas"""
-        # retorna todas las canciones de la base de datos
         return Cancion.query.all(), 200
 
     @ns.doc("Crear una nueva canción")
@@ -132,6 +150,7 @@ class CancionListAPI(Resource):
     def post(self):
         """Crea una nueva canción"""
         data = request.json
+        logging.info(f"Intentando crear usuario con datos: {data}")
         
         cancion = Cancion(
             titulo=data["titulo"],
@@ -158,10 +177,8 @@ class CancionAPI(Resource):
     @ns.marshal_with(cancion_model)
     def get(self, id):
         """Obtiene una canción por su ID"""
-         # retorna la canción o error 404 si no existe
         return Cancion.query.get_or_404(id)
 
-    
     @ns.doc("Actualizar una canción")
     @ns.expect(cancion_base)
     @ns.marshal_with(cancion_model)
@@ -230,7 +247,6 @@ class FavoritoListAPI(Resource):
     @ns.marshal_list_with(favorito_model)
     def get(self):
         """Obtiene todos los registros de favoritos"""
-        # retorna todos los favoritos de la base de datos
         return Favorito.query.all(), 200
     
     @ns.doc("Marcar una canción como favorita")
@@ -272,119 +288,16 @@ class FavoritoListAPI(Resource):
             return favorito, 201
         except Exception as e:
             db.session.rollback()
-            ns.abort(400, f"Error al marcar como favorito: {str(e)}")
+            ns.abort(400, f"Error al marcar canción como favorita: {str(e)}")
 
-@ns.route("/favoritos/<int:id>")
-@ns.param("id", "Identificador único del favorito")
-@ns.response(404, "Favorito no encontrado")
-class FavoritoAPI(Resource):
-    @ns.doc("Obtener un favorito por su ID")
-    @ns.marshal_with(favorito_model)
-    def get(self, id):
-        """Obtiene un registro de favorito por su ID"""
-        favorito = Favorito.query.get_or_404(id)
-        return favorito
-    
-    @ns.doc("Eliminar un favorito")
-    @ns.response(204, "Favorito eliminado con éxito")
-    def delete(self, id):
-        """Elimina un registro de favorito existente"""
-        favorito = Favorito.query.get_or_404(id)
-        try:
-            db.session.delete(favorito)
-            db.session.commit()
-            return {}, 204
-        except Exception as e:
-            db.session.rollback()
-            ns.abort(400, f"Error al eliminar favorito: {str(e)}")
-
-@ns.route("/usuarios/<int:id>/favoritos")
-@ns.param("id", "Identificador único del usuario")
-@ns.response(404, "Usuario no encontrado")
-class UsuarioFavoritosAPI(Resource):
-    @ns.doc("Obtener las canciones favoritas de un usuario")
+@ns.route("/favoritos/usuario/<int:id_usuario>")
+@ns.param("id_usuario", "Identificador del usuario")
+class FavoritosUsuarioAPI(Resource):
+    @ns.doc("Listar las canciones favoritas de un usuario")
+    @ns.response(200, "Lista de favoritos obtenida con éxito")
     @ns.marshal_with(favoritos_usuario_model)
-    def get(self, id):
-        """Obtiene todas las canciones favoritas de un usuario"""
-        usuario = Usuario.query.get_or_404(id)
-        
-        # Obtener los favoritos del usuario
-        favoritos = Favorito.query.filter_by(id_usuario=id).all()
-        
-        # Extraer las canciones de los favoritos
-        canciones_favoritas = [
-            {
-                "id": favorito.cancion.id,
-                "titulo": favorito.cancion.titulo,
-                "artista": favorito.cancion.artista
-            }
-            for favorito in favoritos
-        ]
-        
-        return {
-            "usuario": {
-                "id": usuario.id,
-                "nombre": usuario.nombre
-            },
-            "canciones_favoritas": canciones_favoritas
-        }
-
-@ns.route("/usuarios/<int:id_usuario>/favoritos/<int:id_cancion>")
-@ns.param("id_usuario", "Identificador único del usuario")
-@ns.param("id_cancion", "Identificador único de la canción")
-class UsuarioCancionFavoritoAPI(Resource):
-    @ns.doc("Marcar o desmarcar una canción como favorita para un usuario")
-    @ns.response(201, "Canción marcada como favorita")
-    @ns.response(204, "Canción desmarcada como favorita")
-    @ns.response(404, "Usuario o canción no encontrada")
-    def post(self, id_usuario, id_cancion):
-        """Marca una canción como favorita para un usuario"""
-        # Verificar si existen el usuario y la canción
-        usuario = Usuario.query.get(id_usuario)
-        cancion = Cancion.query.get(id_cancion)
-        
-        if not usuario:
-            ns.abort(404, "Usuario no encontrado")
-        if not cancion:
-            ns.abort(404, "Canción no encontrada")
-        
-        # Verificar si ya existe el favorito
-        favorito = Favorito.query.filter_by(
-            id_usuario=id_usuario,
-            id_cancion=id_cancion
-        ).first()
-        
-        if favorito:
-            ns.abort(400, "La canción ya está marcada como favorita para este usuario")
-        
-        favorito = Favorito(
-            id_usuario=id_usuario,
-            id_cancion=id_cancion
-        )
-        
-        try:
-            db.session.add(favorito)
-            db.session.commit()
-            return {"mensaje": "Canción marcada como favorita"}, 201
-        except Exception as e:
-            db.session.rollback()
-            ns.abort(400, f"Error al marcar como favorito: {str(e)}")
-    
-    @ns.doc("Eliminar una canción de favoritos")
-    @ns.response(204, "Canción eliminada de favoritos")
-    @ns.response(404, "Relación de favorito no encontrada")
-    def delete(self, id_usuario, id_cancion):
-        """Elimina una canción de favoritos para un usuario"""
-        favorito = Favorito.query.filter_by(
-            id_usuario=id_usuario,
-            id_cancion=id_cancion
-        ).first_or_404("Relación de favorito no encontrada")
-        
-        try:
-            db.session.delete(favorito)
-            db.session.commit()
-            return {}, 204
-        except Exception as e:
-            db.session.rollback()
-            ns.abort(400, f"Error al eliminar favorito: {str(e)}")
-
+    def get(self, id_usuario):
+        """Obtiene las canciones favoritas de un usuario"""
+        usuario = Usuario.query.get_or_404(id_usuario)
+        favoritos = Favorito.query.filter_by(id_usuario=id_usuario).all()
+        return favoritos, 200

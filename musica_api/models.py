@@ -9,10 +9,12 @@ class Usuario(db.Model):
     """
     Modelo para representar un usuario en el sistema.
     """
+    
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     correo = db.Column(db.String(100), unique=True, nullable=False)
     fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
+    contrasena = db.Column(db.String(255), nullable=False)  # <--- AGREGA ESTA LÍNEA
     
     # Relación con favoritos
     favoritos = db.relationship("Favorito", back_populates="usuario", cascade="all, delete-orphan")

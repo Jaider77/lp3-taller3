@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login - JF MUSIC</title>
+</head>
+<body>
+  <h1>Iniciar Sesión</h1>
+  <form id="loginForm">
+    <label for="correo">Correo:</label><br />
+    <input type="email" id="correo" name="correo" required /><br /><br />
+
+    <label for="contrasena">Contraseña:</label><br />
+    <input type="password" id="contrasena" name="contrasena" required /><br /><br />
+
+    <!-- Campo para nombre solo visible si se va a registrar -->
+    <div id="nombreContainer" style="display:none;">
+      <label for="nombre">Nombre:</label><br />
+      <input type="text" id="nombre" name="nombre" /><br /><br />
+    </div>
+
+    <button type="submit">Entrar</button>
+  </form>
+
+  <div style="text-align:center; margin-top:1em;">
+    <a href="register.html">¿No tienes cuenta? Regístrate aquí</a>
+  </div>
+
+  <p id="mensaje" style="color: red;"></p>
+
+  <script>
+    const form = document.getElementById("loginForm");
+    const mensaje = document.getElementById("mensaje");
+    const nombreContainer = document.getElementById("nombreContainer");
+    const nombreInput = document.getElementById("nombre");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const correo = form.correo.value.trim();
+      const contrasena = form.contrasena.value.trim();
+      let nombre = form.nombre ? form.nombre.value.trim() : "";
+
+      if (!correo || !contrasena) {
+        mensaje.textContent = "Por favor, completa todos los campos.";
+        return;
+      }
+
+      try {
+        // Intentar login
+        const response = await fetch("http://127.0.0.1:5000/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ correo, contrasena }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          mensaje.style.color = "green";
+          mensaje.textContent = data.mensaje;
+          localStorage.setItem("usuario_id", data.usuario_id);
+          localStorage.setItem("correo", correo);
+
+          if (correo.endsWith("@admin.com")) {
+            window.location.href = "home.html";
+          } else {
+            window.location.href = "index.html";
+          }
+        } else if (data.mensaje && data.mensaje.toLowerCase().includes("no existe")) {
+          // Si el usuario no existe, mostrar campo nombre y registrar
+          if (!nombre) {
+            nombreContainer.style.display = "block";
+            mensaje.textContent = "El usuario no existe. Por favor, ingresa tu nombre para registrarte y vuelve a enviar.";
+            return;
+          }
+          // Registrar usuario
+          const registro = await fetch("http://127.0.0.1:5000/api/usuarios", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nombre, correo, contrasena }),
+          });
+          const dataRegistro = await registro.json();
+          if (registro.ok) {
+            localStorage.setItem("usuario_id", dataRegistro.id || dataRegistro.usuario_id);
+            localStorage.setItem("correo", correo);
+            mensaje.style.color = "green";
+            mensaje.textContent = "Usuario creado y sesión iniciada.";
+            if (correo.endsWith("@admin.com")) {
+              window.location.href = "home.html";
+            } else {
+              window.location.href = "index.html";
+            }
+          } else {
+            mensaje.style.color = "red";
+            mensaje.textContent = dataRegistro.mensaje || "No se pudo crear el usuario.";
+          }
+        } else {
+          mensaje.style.color = "red";
+          mensaje.textContent = data.mensaje || "Error en el inicio de sesión";
+        }
+      } catch (error) {
+        mensaje.style.color = "red";
+        mensaje.textContent = "Error de conexión con el servidor.";
+        console.error(error);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <link rel="icon" href="imagenes/logo.png" type="image/png">
+    <meta charset="UTF-8">
+    <title>Canciones - JF M</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: #f8f9fc;
+            margin: 0;
+            padding: 2em;
+        }
+        h1 {
+            color: #6a1b9a;
+            text-align: center;
+        }
+        .canciones-box {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 1.5em;
+            max-width: 500px;
+            margin: 2em auto;
+        }
+        .canciones-box h2 {
+            color: #4a148c;
+            margin-top: 0;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        li {
+            padding: 0.5em 0;
+            border-bottom: 1px solid #eee;
+        }
+        li:last-child {
+            border-bottom: none;
+        }
+        .logout-btn {
+            float: right;
+            margin: 1em;
+            background: #6a1b9a;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .logout-btn:hover {
+            background: #4a148c;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Protección: solo usuarios logueados pueden ver esta página
+        if (!localStorage.getItem('usuario')) {
+            window.location.href = "login.html";
+        }
+    </script>
+    <button class="logout-btn" onclick="logout()">Cerrar sesión</button>
+    <h1>Lista de Canciones</h1>
+    <div class="canciones-box">
+        <h2>Canciones</h2>
+        <ul id="cancionesList">
+            <li>Cargando...</li>
+        </ul>
+    </div>
+    <script>
+        function logout() {
+            localStorage.removeItem('usuario');
+            window.location.href = "login.html";
+        }
+
+        // Obtener canciones
+        fetch('http://127.0.0.1:5000/api/canciones')
+            .then(res => res.json())
+            .then(data => {
+                const ul = document.getElementById('cancionesList');
+                ul.innerHTML = '';
+                if (data.length === 0) {
+                    ul.innerHTML = '<li>No hay canciones registradas.</li>';
+                } else {
+                    data.forEach(cancion => {
+                        ul.innerHTML += `<li>${cancion.titulo} - ${cancion.artista}</li>`;
+                    });
+                }
+            })
+            .catch(() => {
+                document.getElementById('cancionesList').innerHTML = '<li>Error al cargar canciones.</li>';
+            });
+    </script>
+</body>
+</html>

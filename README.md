@@ -42,8 +42,8 @@ Este proyecto es una aplicación web para gestionar usuarios y canciones, con au
 
 - **Inicio de sesión y registro automático**: Si el usuario no existe al intentar iniciar sesión, puede registrarse directamente desde el mismo formulario.
 - **Registro manual**: Disponible en `register.html`.
-- **Lista de canciones**: Visible para todos los usuarios autenticados.
-- **Panel de administración**: Solo para administradores, muestra usuarios y canciones.
+- **Lista de canciones**: Visible para todos los usuarios autenticados para probarlo crea un nombre@correo.com .
+- **Panel de administración**: Solo para administradores, muestra usuarios y canciones para probarlo crea un correo y terminalo en nombre@admin.com.
 - **Cierre de sesión**: Disponible en todas las páginas protegidas.
 - **Protección de rutas**: Solo usuarios autenticados pueden acceder a las páginas principales; solo administradores pueden acceder al panel de administración.
 
